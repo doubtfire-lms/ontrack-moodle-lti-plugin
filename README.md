@@ -47,13 +47,17 @@ Install the release ZIP through **Site administration → Plugins → Install pl
 
 ## Maintainer checks
 
-These commands are provided for the maintainer and are not run automatically:
+GitHub Actions runs PHP lint, the Moodle code and PHPDoc checkers, plugin validation and PHPUnit against Moodle 4.2, 4.5 and 5.2 on every push to `main` and every pull request. Releases only build after these pass.
+
+To check code style locally (both are installed in the dev container):
 
 ```bash
-php -l version.php
-php -l classes/local/service/ontrack.php
-php -l classes/local/resources/coursedata.php
-php -l classes/local/course_snapshot.php
-php -l classes/privacy/provider.php
+phpcs --standard=moodle .
+phpcbf --standard=moodle .
+```
+
+PHPUnit runs from a Moodle root with the plugin installed at `mod/lti/service/ontrack`, after `php admin/tool/phpunit/cli/init.php`:
+
+```bash
 vendor/bin/phpunit --testsuite ltiservice_ontrack_testsuite
 ```
