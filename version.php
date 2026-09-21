@@ -24,9 +24,9 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version = 2026091702;
+$plugin->version = 2026092100;
 $plugin->requires = 2023042400; // Moodle 4.2 or later.
 $plugin->component = 'ltiservice_ontrack';
 $plugin->dependencies = ['mod_lti' => ANY_VERSION];
 $plugin->maturity = MATURITY_ALPHA;
-$plugin->release = '0.1.1-alpha';
+$plugin->release = '0.1.2-alpha';
