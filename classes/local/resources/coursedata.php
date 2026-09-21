@@ -88,6 +88,10 @@ class coursedata extends resource_base
             if (!$this->check_tool($toolcode, $response->get_request_data(), [ontrack::SCOPE_COURSE_DATA_READ])) {
                 throw new \Exception('The LTI tool is not authorised for the OnTrack course-data scope', 401);
             }
+            // LTI 1.1 signed requests skip the token scope check, so enforce the tool setting here.
+            if (empty($this->get_service()->get_permitted_scopes())) {
+                throw new \Exception('The OnTrack course-data service is disabled for this tool', 403);
+            }
 
             $course = $DB->get_record(
                 'course',
@@ -96,13 +100,13 @@ class coursedata extends resource_base
                 MUST_EXIST
             );
             if (!$this->get_service()->is_used_in_context($toolcode, $course->id)) {
-                  throw new \Exception('The OnTrack tool is not used in this course', 404);
-            }
-            if ($assignmentid > 0 && !$DB->record_exists('assign', ['id' => $assignmentid, 'course' => $course->id])) {
-                throw new \Exception('Assignment not found in this course', 404);
+                throw new \Exception('The OnTrack tool is not used in this course', 404);
             }
             if ($assignmentid > 0 && !in_array('assignments', $includes, true)) {
                 throw new \Exception('assignment_id requires assignments to be included', 400);
+            }
+            if ($assignmentid > 0 && !course_snapshot::assignment_exists($course->id, $assignmentid)) {
+                throw new \Exception('Assignment not found in this course', 404);
             }
 
             $payload = course_snapshot::for_course(

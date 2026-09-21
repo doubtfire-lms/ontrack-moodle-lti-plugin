@@ -72,6 +72,26 @@ class course_snapshot
     }
 
     /**
+     * Whether an assignment exists in the course and is not pending deletion.
+     *
+     * @param int $courseid Moodle course id.
+     * @param int $assignmentid Assignment instance id.
+     * @return bool
+     */
+    public static function assignment_exists(int $courseid, int $assignmentid): bool {
+        global $DB;
+
+        return $DB->record_exists_sql(
+            "SELECT 1
+               FROM {assign} a
+               JOIN {course_modules} cm ON cm.instance = a.id AND cm.course = a.course AND cm.deletioninprogress = 0
+               JOIN {modules} m ON m.id = cm.module AND m.name = :modulename
+              WHERE a.id = :assignmentid AND a.course = :courseid",
+            ['assignmentid' => $assignmentid, 'courseid' => $courseid, 'modulename' => 'assign']
+        );
+    }
+
+    /**
      * Return enrolled users, their enrolment records, course roles and groups.
      *
      * @param \stdClass $course Moodle course record.
@@ -276,7 +296,7 @@ class course_snapshot
                        a.gradingduedate, a.nosubmissions, cm.id AS coursemoduleid,
                        cm.visible, cm.visibleoncoursepage
                   FROM {assign} a
-                  JOIN {course_modules} cm ON cm.instance = a.id
+                  JOIN {course_modules} cm ON cm.instance = a.id AND cm.course = a.course AND cm.deletioninprogress = 0
                   JOIN {modules} m ON m.id = cm.module AND m.name = :modulename
                  WHERE a.course = :courseid{$assignmentfilter}
               ORDER BY a.name, a.id";

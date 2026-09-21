@@ -72,6 +72,26 @@ final class course_snapshot_test extends \advanced_testcase
     }
 
     /**
+     * Assignments pending recycle-bin deletion are excluded.
+     */
+    public function test_snapshot_excludes_assignments_pending_deletion(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $assignment = $this->getDataGenerator()->get_plugin_generator('mod_assign')->create_instance([
+            'course' => $course->id,
+        ]);
+        $DB->set_field('course_modules', 'deletioninprogress', 1, ['id' => $assignment->cmid]);
+
+        $snapshot = course_snapshot::for_course($course, ['assignments']);
+
+        $this->assertSame([], $snapshot['assignments']);
+        $this->assertFalse(course_snapshot::assignment_exists((int) $course->id, (int) $assignment->id));
+    }
+
+    /**
      * Only requested sections are built.
      */
     public function test_snapshot_only_builds_requested_sections(): void {
