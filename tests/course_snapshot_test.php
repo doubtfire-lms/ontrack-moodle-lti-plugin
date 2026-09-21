@@ -27,8 +27,6 @@ namespace ltiservice_ontrack;
 
 use ltiservice_ontrack\local\course_snapshot;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Course snapshot tests.
  *
@@ -36,6 +34,9 @@ defined('MOODLE_INTERNAL') || die();
  */
 final class course_snapshot_test extends \advanced_testcase
 {
+    /**
+     * The full snapshot contains every section.
+     */
     public function test_snapshot_contains_enrolments_groups_assignments_and_extensions(): void {
         global $DB;
 
@@ -70,6 +71,9 @@ final class course_snapshot_test extends \advanced_testcase
         $this->assertSame(1_800_086_400, $snapshot['assignments'][0]['extensions'][0]['extension_due_date']);
     }
 
+    /**
+     * Only requested sections are built.
+     */
     public function test_snapshot_only_builds_requested_sections(): void {
         $this->resetAfterTest();
 

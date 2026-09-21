@@ -24,8 +24,6 @@
 
 namespace ltiservice_ontrack\local\service;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Advertises and authorises the OnTrack course-data resource.
  */

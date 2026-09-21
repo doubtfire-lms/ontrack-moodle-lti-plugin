@@ -24,8 +24,6 @@
 
 namespace ltiservice_ontrack\local;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Snapshot builder kept separate from HTTP and authentication concerns.
  */

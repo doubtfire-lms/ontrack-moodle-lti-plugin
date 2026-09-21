@@ -28,8 +28,6 @@ use ltiservice_ontrack\local\course_snapshot;
 use ltiservice_ontrack\local\service\ontrack;
 use mod_lti\local\ltiservice\resource_base;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Provides one read-only course integration snapshot.
  */
