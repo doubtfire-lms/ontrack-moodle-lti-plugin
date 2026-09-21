@@ -1,0 +1,41 @@
+name: Release Plugin
+
+on:
+    workflow_dispatch:
+        inputs:
+            version:
+                description: "Version to tag (e.g. v1.0.0)"
+                required: true
+            prerelease:
+                description: "Is this a pre-release?"
+                required: true
+                type: boolean
+
+permissions:
+    contents: write
+
+jobs:
+    release:
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Build plugin zip
+              id: build
+              run: |
+                  # Moodle installs the plugin from the directory name, so the archive
+                  # must contain a single top-level 'ontrack' folder.
+                  version='${{ github.event.inputs.version }}'
+                  name="ltiservice_ontrack-${version#v}.zip"
+                  git archive --format=zip --prefix=ontrack/ -o "$name" HEAD
+                  unzip -l "$name"
+                  echo "zip=$name" >> "$GITHUB_OUTPUT"
+
+            - name: Create GitHub Release
+              uses: softprops/action-gh-release@v2.2.2
+              with:
+                  tag_name: ${{ github.event.inputs.version }}
+                  files: ${{ steps.build.outputs.zip }}
+                  prerelease: ${{ github.event.inputs.prerelease }}
+                  generate_release_notes: true
