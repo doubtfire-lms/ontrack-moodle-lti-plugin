@@ -166,7 +166,7 @@ class course_snapshot
     /**
      * Add roles assigned in the course context or any parent context.
      *
-     * @param array<int, array<string, mixed>> $users Users indexed by Moodle user id.
+     * @param array $users Users indexed by Moodle user id, updated in place.
      * @param \context_course $context Course context.
      */
     private static function add_roles(array &$users, \context_course $context): void {
