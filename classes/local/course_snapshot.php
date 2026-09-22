@@ -258,7 +258,7 @@ class course_snapshot
             return [];
         }
 
-        // mod_assign has no bulk read API for dates, extensions or overrides.
+        // The mod_assign plugin has no bulk read API for dates, extensions or overrides.
         $records = $DB->get_records_list(
             'assign',
             'id',
