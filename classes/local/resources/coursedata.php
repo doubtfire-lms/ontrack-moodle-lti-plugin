@@ -58,8 +58,6 @@ class coursedata extends resource_base
      * @param \mod_lti\local\ltiservice\response $response LTI service response.
      */
     public function execute($response) {
-        global $DB;
-
         try {
             $params = $this->parse_template();
             $contextid = clean_param($params['context_id'] ?? '', PARAM_INT);
@@ -93,12 +91,7 @@ class coursedata extends resource_base
                 throw new \Exception('The OnTrack course-data service is disabled for this tool', 403);
             }
 
-            $course = $DB->get_record(
-                'course',
-                ['id' => $contextid],
-                'id,shortname,fullname,startdate,enddate',
-                MUST_EXIST
-            );
+            $course = get_course($contextid);
             if (!$this->get_service()->is_used_in_context($toolcode, $course->id)) {
                 throw new \Exception('The OnTrack tool is not used in this course', 404);
             }

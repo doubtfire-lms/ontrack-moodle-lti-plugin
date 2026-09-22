@@ -64,6 +64,10 @@ final class course_snapshot_test extends \advanced_testcase
         $this->assertCount(1, $snapshot['users']);
         $this->assertSame('student1', $snapshot['users'][0]['username']);
         $this->assertArrayNotHasKey('group_ids', $snapshot['users'][0]);
+        $this->assertSame('student', $snapshot['users'][0]['roles'][0]['short_name']);
+        $this->assertSame(get_string('defaultcoursestudent'), $snapshot['users'][0]['roles'][0]['name']);
+        $this->assertSame('manual', $snapshot['users'][0]['enrolments'][0]['method']);
+        $this->assertTrue($snapshot['users'][0]['enrolments'][0]['active']);
         $this->assertSame([(string) $user->id], $snapshot['groups'][0]['member_user_ids']);
         $this->assertCount(1, $snapshot['assignments']);
         $this->assertSame((string) $assignment->id, $snapshot['assignments'][0]['id']);
@@ -84,11 +88,59 @@ final class course_snapshot_test extends \advanced_testcase
             'course' => $course->id,
         ]);
         $DB->set_field('course_modules', 'deletioninprogress', 1, ['id' => $assignment->cmid]);
+        rebuild_course_cache($course->id, true);
 
         $snapshot = course_snapshot::for_course($course, ['assignments']);
 
         $this->assertSame([], $snapshot['assignments']);
         $this->assertFalse(course_snapshot::assignment_exists((int) $course->id, (int) $assignment->id));
+    }
+
+    /**
+     * Course-level role renames are used for role names.
+     */
+    public function test_snapshot_uses_course_role_alias(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $user = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($user->id, $course->id, 'student');
+        $studentrole = $DB->get_record('role', ['shortname' => 'student'], '*', MUST_EXIST);
+        $DB->insert_record('role_names', (object) [
+            'roleid' => $studentrole->id,
+            'contextid' => \context_course::instance($course->id)->id,
+            'name' => 'Learner',
+        ]);
+
+        $snapshot = course_snapshot::for_course($course, ['users']);
+
+        $this->assertSame('Learner', $snapshot['users'][0]['roles'][0]['name']);
+    }
+
+    /**
+     * Hidden group memberships are included because the service has no Moodle user.
+     */
+    public function test_snapshot_includes_hidden_group_members(): void {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $user = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($user->id, $course->id, 'student');
+        $group = $this->getDataGenerator()->create_group([
+            'courseid' => $course->id,
+            'visibility' => GROUPS_VISIBILITY_NONE,
+        ]);
+        groups_add_member($group, $user);
+        $grouping = $this->getDataGenerator()->create_grouping(['courseid' => $course->id]);
+        groups_assign_grouping($grouping->id, $group->id);
+
+        $snapshot = course_snapshot::for_course($course, ['groups']);
+
+        $this->assertSame(GROUPS_VISIBILITY_NONE, $snapshot['groups'][0]['visibility']);
+        $this->assertSame([(string) $user->id], $snapshot['groups'][0]['member_user_ids']);
+        $this->assertSame([(string) $grouping->id], $snapshot['groups'][0]['grouping_ids']);
     }
 
     /**

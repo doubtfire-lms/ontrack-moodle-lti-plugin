@@ -79,16 +79,8 @@ class course_snapshot
      * @return bool
      */
     public static function assignment_exists(int $courseid, int $assignmentid): bool {
-        global $DB;
-
-        return $DB->record_exists_sql(
-            "SELECT 1
-               FROM {assign} a
-               JOIN {course_modules} cm ON cm.instance = a.id AND cm.course = a.course AND cm.deletioninprogress = 0
-               JOIN {modules} m ON m.id = cm.module AND m.name = :modulename
-              WHERE a.id = :assignmentid AND a.course = :courseid",
-            ['assignmentid' => $assignmentid, 'courseid' => $courseid, 'modulename' => 'assign']
-        );
+        $instances = get_fast_modinfo($courseid)->get_instances_of('assign');
+        return isset($instances[$assignmentid]) && !$instances[$assignmentid]->deletioninprogress;
     }
 
     /**
@@ -99,25 +91,18 @@ class course_snapshot
      * @return array<int, array<string, mixed>>
      */
     private static function users_for_course(\stdClass $course, \context_course $context): array {
-        global $DB;
-
-        $sql = "SELECT ue.id AS userenrolmentid, ue.userid, ue.status AS userenrolmentstatus,
-                       ue.timestart, ue.timeend, e.id AS enrolmentinstanceid, e.enrol,
-                       e.name AS enrolmentname, e.status AS enrolmentinstancestatus,
-                       u.username, u.idnumber, u.firstname, u.lastname, u.email,
-                       u.firstnamephonetic, u.lastnamephonetic, u.middlename, u.alternatename,
-                       u.suspended, u.deleted
-                  FROM {user_enrolments} ue
-                  JOIN {enrol} e ON e.id = ue.enrolid
-                  JOIN {user} u ON u.id = ue.userid
-                 WHERE e.courseid = :courseid
-              ORDER BY u.lastname, u.firstname, u.id, ue.id";
-        $enrolments = $DB->get_recordset_sql($sql, ['courseid' => $course->id]);
+        $instances = enrol_get_instances($course->id, false);
+        $enrolments = array_values(enrol_get_course_users($course->id));
+        usort($enrolments, static function ($a, $b) {
+            return [\core_text::strtolower($a->lastname), \core_text::strtolower($a->firstname), (int) $a->id, (int) $a->ueid]
+                <=> [\core_text::strtolower($b->lastname), \core_text::strtolower($b->firstname), (int) $b->id, (int) $b->ueid];
+        });
         $users = [];
         $now = time();
 
         foreach ($enrolments as $enrolment) {
-            $userid = (int) $enrolment->userid;
+            $userid = (int) $enrolment->id;
+            $instance = $instances[$enrolment->ueenrolid] ?? null;
             if (!isset($users[$userid])) {
                 $users[$userid] = [
                 'id' => (string) $userid,
@@ -134,26 +119,26 @@ class course_snapshot
                 ];
             }
 
-            $start = (int) $enrolment->timestart;
-            $end = (int) $enrolment->timeend;
+            $start = (int) $enrolment->uetimestart;
+            $end = (int) $enrolment->uetimeend;
+            // Matches the onlyactive rules in enrol_get_course_users().
             $users[$userid]['enrolments'][] = [
-            'id' => (string) $enrolment->userenrolmentid,
-            'instance_id' => (string) $enrolment->enrolmentinstanceid,
-            'method' => (string) $enrolment->enrol,
-            'instance_name' => (string) ($enrolment->enrolmentname ?? ''),
-            'status' => (int) $enrolment->userenrolmentstatus,
-            'instance_status' => (int) $enrolment->enrolmentinstancestatus,
+            'id' => (string) $enrolment->ueid,
+            'instance_id' => (string) $enrolment->ueenrolid,
+            'method' => (string) ($instance->enrol ?? ''),
+            'instance_name' => (string) ($instance->name ?? ''),
+            'status' => (int) $enrolment->uestatus,
+            'instance_status' => (int) $enrolment->estatus,
             'start_date' => $start,
             'end_date' => $end,
             'active' => !(bool) $enrolment->suspended
             && !(bool) $enrolment->deleted
-            && (int) $enrolment->userenrolmentstatus === ENROL_USER_ACTIVE
-            && (int) $enrolment->enrolmentinstancestatus === ENROL_INSTANCE_ENABLED
-            && ($start === 0 || $start <= $now)
+            && (int) $enrolment->uestatus === ENROL_USER_ACTIVE
+            && (int) $enrolment->estatus === ENROL_INSTANCE_ENABLED
+            && $start < $now
             && ($end === 0 || $end > $now),
             ];
         }
-        $enrolments->close();
 
         if (empty($users)) {
             return [];
@@ -170,41 +155,30 @@ class course_snapshot
      * @param \context_course $context Course context.
      */
     private static function add_roles(array &$users, \context_course $context): void {
-        global $DB;
+        $allroles = get_all_roles($context);
+        $assignments = get_users_roles($context, array_keys($users), true, 'r.sortorder ASC, ra.id ASC');
 
-        $contextids = array_values(array_filter(explode('/', trim($context->path, '/'))));
-        [$contextsql, $contextparams] = $DB->get_in_or_equal($contextids, SQL_PARAMS_NAMED, 'context');
-        [$usersql, $userparams] = $DB->get_in_or_equal(array_keys($users), SQL_PARAMS_NAMED, 'user');
-        $sql = "SELECT ra.id, ra.userid, r.id AS roleid, r.shortname, r.name, r.archetype
-                  FROM {role_assignments} ra
-                  JOIN {role} r ON r.id = ra.roleid
-                 WHERE ra.contextid {$contextsql}
-                   AND ra.userid {$usersql}
-              ORDER BY r.sortorder, r.id";
-        $roles = $DB->get_recordset_sql($sql, $contextparams + $userparams);
-        $seen = [];
-
-        foreach ($roles as $role) {
-            $userid = (int) $role->userid;
-            $roleid = (int) $role->roleid;
-            if (isset($users[$userid]) && empty($seen[$userid][$roleid])) {
+        foreach ($assignments as $userid => $userassignments) {
+            $seen = [];
+            foreach ($userassignments as $assignment) {
+                $roleid = (int) $assignment->roleid;
+                if (!isset($users[$userid]) || isset($seen[$roleid]) || !isset($allroles[$roleid])) {
+                    continue;
+                }
+                $role = $allroles[$roleid];
                 $users[$userid]['roles'][] = [
                 'id' => (string) $roleid,
                 'short_name' => (string) $role->shortname,
-                'name' => (string) ($role->name ?: $role->shortname),
+                'name' => role_get_name($role, $context),
                 'archetype' => (string) $role->archetype,
                 ];
-                $seen[$userid][$roleid] = true;
+                $seen[$roleid] = true;
             }
         }
-        $roles->close();
     }
 
     /**
      * Return all course groups with their groupings and members.
-     *
-     * The service is authorised as the registered LTI tool rather than a Moodle
-     * user, so this deliberately includes hidden group memberships.
      *
      * @param \stdClass $course Moodle course record.
      * @param \context_course $context Course context.
@@ -213,26 +187,16 @@ class course_snapshot
     private static function groups_for_course(\stdClass $course, \context_course $context): array {
         global $DB;
 
-        $groupstable = new \xmldb_table('groups');
-        $hasvisibility = $DB->get_manager()->field_exists($groupstable, new \xmldb_field('visibility'));
-        $hasparticipation = $DB->get_manager()->field_exists($groupstable, new \xmldb_field('participation'));
-        $fields = 'id,idnumber,name';
-        if ($hasvisibility) {
-            $fields .= ',visibility';
-        }
-        if ($hasparticipation) {
-            $fields .= ',participation';
-        }
-        $records = $DB->get_records('groups', ['courseid' => $course->id], 'name ASC, id ASC', $fields);
+        $data = groups_get_course_data($course->id);
         $groups = [];
 
-        foreach ($records as $group) {
+        foreach ($data->groups as $group) {
             $groups[(int) $group->id] = [
             'id' => (string) $group->id,
             'idnumber' => (string) ($group->idnumber ?? ''),
             'name' => format_string($group->name, true, ['context' => $context]),
-            'visibility' => $hasvisibility ? (int) $group->visibility : 0,
-            'participation' => $hasparticipation ? (bool) $group->participation : true,
+            'visibility' => (int) $group->visibility,
+            'participation' => (bool) $group->participation,
             'grouping_ids' => [],
             'member_user_ids' => [],
             ];
@@ -242,30 +206,28 @@ class course_snapshot
             return [];
         }
 
-        [$insql, $inparams] = $DB->get_in_or_equal(array_keys($groups), SQL_PARAMS_NAMED, 'groupid');
-        $members = $DB->get_recordset_sql(
-            "SELECT gm.id, gm.groupid, gm.userid
-               FROM {groups_members} gm
-              WHERE gm.groupid {$insql}
-           ORDER BY gm.groupid, gm.userid",
-            $inparams
+        // Core member functions hide groups from the current $USER, and LTI service requests have none.
+        $members = $DB->get_recordset_list(
+            'groups_members',
+            'groupid',
+            array_keys($groups),
+            'groupid, userid',
+            'id, groupid, userid'
         );
         foreach ($members as $member) {
             $groups[(int) $member->groupid]['member_user_ids'][] = (string) $member->userid;
         }
         $members->close();
 
-        $mappings = $DB->get_recordset_sql(
-            "SELECT gg.id, gg.groupid, gg.groupingid
-               FROM {groupings_groups} gg
-              WHERE gg.groupid {$insql}
-           ORDER BY gg.groupid, gg.groupingid",
-            $inparams
-        );
-        foreach ($mappings as $mapping) {
-            $groups[(int) $mapping->groupid]['grouping_ids'][] = (string) $mapping->groupingid;
+        foreach ($data->mappings as $mapping) {
+            if (isset($groups[(int) $mapping->groupid])) {
+                $groups[(int) $mapping->groupid]['grouping_ids'][] = (string) $mapping->groupingid;
+            }
         }
-        $mappings->close();
+        foreach ($groups as &$group) {
+            sort($group['grouping_ids'], SORT_NUMERIC);
+        }
+        unset($group);
 
         return array_values($groups);
     }
@@ -285,36 +247,40 @@ class course_snapshot
     ): array {
         global $DB;
 
-        $params = ['courseid' => $course->id, 'modulename' => 'assign'];
-        $assignmentfilter = '';
-        if ($assignmentid !== null) {
-            $assignmentfilter = ' AND a.id = :assignmentid';
-            $params['assignmentid'] = $assignmentid;
+        $cms = [];
+        foreach (get_fast_modinfo($course)->get_instances_of('assign') as $instanceid => $cm) {
+            if (!$cm->deletioninprogress && ($assignmentid === null || $instanceid === $assignmentid)) {
+                $cms[(int) $instanceid] = $cm;
+            }
         }
 
-        $sql = "SELECT a.id, a.name, a.allowsubmissionsfromdate, a.duedate, a.cutoffdate,
-                       a.gradingduedate, a.nosubmissions, cm.id AS coursemoduleid,
-                       cm.visible, cm.visibleoncoursepage
-                  FROM {assign} a
-                  JOIN {course_modules} cm ON cm.instance = a.id AND cm.course = a.course AND cm.deletioninprogress = 0
-                  JOIN {modules} m ON m.id = cm.module AND m.name = :modulename
-                 WHERE a.course = :courseid{$assignmentfilter}
-              ORDER BY a.name, a.id";
-        $records = $DB->get_records_sql($sql, $params);
+        if (empty($cms)) {
+            return [];
+        }
+
+        // mod_assign has no bulk read API for dates, extensions or overrides.
+        $records = $DB->get_records_list(
+            'assign',
+            'id',
+            array_keys($cms),
+            'name ASC, id ASC',
+            'id, name, allowsubmissionsfromdate, duedate, cutoffdate, gradingduedate, nosubmissions'
+        );
         $assignments = [];
 
         foreach ($records as $assignment) {
+            $cm = $cms[(int) $assignment->id];
             $assignments[(int) $assignment->id] = [
             'id' => (string) $assignment->id,
-            'course_module_id' => (string) $assignment->coursemoduleid,
+            'course_module_id' => (string) $cm->id,
             'name' => format_string($assignment->name, true, ['context' => $context]),
             'allows_submissions_from_date' => (int) $assignment->allowsubmissionsfromdate,
             'due_date' => (int) $assignment->duedate,
             'cutoff_date' => (int) $assignment->cutoffdate,
             'grading_due_date' => (int) $assignment->gradingduedate,
             'accepts_submissions' => !(bool) $assignment->nosubmissions,
-            'visible' => (bool) $assignment->visible,
-            'visible_on_course_page' => (bool) $assignment->visibleoncoursepage,
+            'visible' => (bool) $cm->visible,
+            'visible_on_course_page' => (bool) $cm->visibleoncoursepage,
             'extensions' => [],
             'user_overrides' => [],
             'group_overrides' => [],
@@ -327,13 +293,12 @@ class course_snapshot
 
         $assignmentids = array_keys($assignments);
         [$insql, $inparams] = $DB->get_in_or_equal($assignmentids, SQL_PARAMS_NAMED, 'assignment');
-        $flags = $DB->get_recordset_sql(
-            "SELECT auf.id, auf.assignment, auf.userid, auf.extensionduedate
-               FROM {assign_user_flags} auf
-              WHERE auf.assignment {$insql}
-                AND auf.extensionduedate > 0
-           ORDER BY auf.assignment, auf.userid",
-            $inparams
+        $flags = $DB->get_recordset_select(
+            'assign_user_flags',
+            "assignment {$insql} AND extensionduedate > 0",
+            $inparams,
+            'assignment, userid',
+            'id, assignment, userid, extensionduedate'
         );
         foreach ($flags as $flag) {
             $assignments[(int) $flag->assignment]['extensions'][] = [
@@ -343,13 +308,12 @@ class course_snapshot
         }
         $flags->close();
 
-        $overrides = $DB->get_recordset_sql(
-            "SELECT ao.id, ao.assignid, ao.userid, ao.groupid,
-                    ao.allowsubmissionsfromdate, ao.duedate, ao.cutoffdate
-               FROM {assign_overrides} ao
-              WHERE ao.assignid {$insql}
-           ORDER BY ao.assignid, ao.sortorder, ao.id",
-            $inparams
+        $overrides = $DB->get_recordset_list(
+            'assign_overrides',
+            'assignid',
+            $assignmentids,
+            'assignid, sortorder, id',
+            'id, assignid, userid, groupid, allowsubmissionsfromdate, duedate, cutoffdate'
         );
         foreach ($overrides as $override) {
             $entry = [
