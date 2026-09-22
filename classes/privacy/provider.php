@@ -24,7 +24,12 @@
 
 namespace ltiservice_ontrack\privacy;
 
+use context;
 use core_privacy\local\metadata\collection;
+use core_privacy\local\request\approved_contextlist;
+use core_privacy\local\request\approved_userlist;
+use core_privacy\local\request\contextlist;
+use core_privacy\local\request\userlist;
 
 /**
  * Declares data sent to OnTrack. The plugin stores no personal data itself.
@@ -61,49 +66,49 @@ class provider implements
      * No data is stored, so no contexts hold user data.
      *
      * @param int $userid User id.
-     * @return \core_privacy\local\request\contextlist
+     * @return contextlist
      */
-    public static function get_contexts_for_userid(int $userid): \core_privacy\local\request\contextlist {
-        return new \core_privacy\local\request\contextlist();
+    public static function get_contexts_for_userid(int $userid): contextlist {
+        return new contextlist();
     }
 
     /**
      * No data is stored, so no users are added.
      *
-     * @param \core_privacy\local\request\userlist $userlist User list.
+     * @param userlist $userlist User list.
      */
-    public static function get_users_in_context(\core_privacy\local\request\userlist $userlist) {
+    public static function get_users_in_context(userlist $userlist) {
     }
 
     /**
      * No data is stored, so there is nothing to export.
      *
-     * @param \core_privacy\local\request\approved_contextlist $contextlist Approved contexts.
+     * @param approved_contextlist $contextlist Approved contexts.
      */
-    public static function export_user_data(\core_privacy\local\request\approved_contextlist $contextlist) {
+    public static function export_user_data(approved_contextlist $contextlist) {
     }
 
     /**
      * No data is stored, so there is nothing to delete.
      *
-     * @param \context $context Context.
+     * @param context $context Context.
      */
-    public static function delete_data_for_all_users_in_context(\context $context) {
+    public static function delete_data_for_all_users_in_context(context $context) {
     }
 
     /**
      * No data is stored, so there is nothing to delete.
      *
-     * @param \core_privacy\local\request\approved_userlist $userlist Approved users.
+     * @param approved_userlist $userlist Approved users.
      */
-    public static function delete_data_for_users(\core_privacy\local\request\approved_userlist $userlist) {
+    public static function delete_data_for_users(approved_userlist $userlist) {
     }
 
     /**
      * No data is stored, so there is nothing to delete.
      *
-     * @param \core_privacy\local\request\approved_contextlist $contextlist Approved contexts.
+     * @param approved_contextlist $contextlist Approved contexts.
      */
-    public static function delete_data_for_user(\core_privacy\local\request\approved_contextlist $contextlist) {
+    public static function delete_data_for_user(approved_contextlist $contextlist) {
     }
 }

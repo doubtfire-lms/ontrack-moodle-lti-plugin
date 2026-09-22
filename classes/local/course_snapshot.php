@@ -24,6 +24,10 @@
 
 namespace ltiservice_ontrack\local;
 
+use context_course;
+use core_text;
+use stdClass;
+
 /**
  * Snapshot builder kept separate from HTTP and authentication concerns.
  */
@@ -35,17 +39,17 @@ class course_snapshot
     /**
      * Build a snapshot containing course enrolments, groups and assignments.
      *
-     * @param \stdClass $course Moodle course record.
+     * @param stdClass $course Moodle course record.
      * @param string[] $includes Sections to include.
      * @param int|null $assignmentid Return only this assignment when supplied.
      * @return array<string, mixed>
      */
     public static function for_course(
-        \stdClass $course,
+        stdClass $course,
         array $includes = self::SECTIONS,
         ?int $assignmentid = null
     ): array {
-        $context = \context_course::instance($course->id);
+        $context = context_course::instance($course->id);
         $payload = [
         'version' => '2',
         'generated_at' => time(),
@@ -86,16 +90,16 @@ class course_snapshot
     /**
      * Return enrolled users, their enrolment records, course roles and groups.
      *
-     * @param \stdClass $course Moodle course record.
-     * @param \context_course $context Course context.
+     * @param stdClass $course Moodle course record.
+     * @param context_course $context Course context.
      * @return array<int, array<string, mixed>>
      */
-    private static function users_for_course(\stdClass $course, \context_course $context): array {
+    private static function users_for_course(stdClass $course, context_course $context): array {
         $instances = enrol_get_instances($course->id, false);
         $enrolments = array_values(enrol_get_course_users($course->id));
         usort($enrolments, static function ($a, $b) {
-            return [\core_text::strtolower($a->lastname), \core_text::strtolower($a->firstname), (int) $a->id, (int) $a->ueid]
-                <=> [\core_text::strtolower($b->lastname), \core_text::strtolower($b->firstname), (int) $b->id, (int) $b->ueid];
+            return [core_text::strtolower($a->lastname), core_text::strtolower($a->firstname), (int) $a->id, (int) $a->ueid]
+                <=> [core_text::strtolower($b->lastname), core_text::strtolower($b->firstname), (int) $b->id, (int) $b->ueid];
         });
         $users = [];
         $now = time();
@@ -152,9 +156,9 @@ class course_snapshot
      * Add roles assigned in the course context or any parent context.
      *
      * @param array $users Users indexed by Moodle user id, updated in place.
-     * @param \context_course $context Course context.
+     * @param context_course $context Course context.
      */
-    private static function add_roles(array &$users, \context_course $context): void {
+    private static function add_roles(array &$users, context_course $context): void {
         $allroles = get_all_roles($context);
         $assignments = get_users_roles($context, array_keys($users), true, 'r.sortorder ASC, ra.id ASC');
 
@@ -180,11 +184,11 @@ class course_snapshot
     /**
      * Return all course groups with their groupings and members.
      *
-     * @param \stdClass $course Moodle course record.
-     * @param \context_course $context Course context.
+     * @param stdClass $course Moodle course record.
+     * @param context_course $context Course context.
      * @return array<int, array<string, mixed>>
      */
-    private static function groups_for_course(\stdClass $course, \context_course $context): array {
+    private static function groups_for_course(stdClass $course, context_course $context): array {
         global $DB;
 
         $data = groups_get_course_data($course->id);
@@ -235,14 +239,14 @@ class course_snapshot
     /**
      * Return assignments and their per-user extension due dates.
      *
-     * @param \stdClass $course Moodle course record.
-     * @param \context_course $context Course context.
+     * @param stdClass $course Moodle course record.
+     * @param context_course $context Course context.
      * @param int|null $assignmentid Optional assignment filter.
      * @return array<int, array<string, mixed>>
      */
     private static function assignments_for_course(
-        \stdClass $course,
-        \context_course $context,
+        stdClass $course,
+        context_course $context,
         ?int $assignmentid
     ): array {
         global $DB;

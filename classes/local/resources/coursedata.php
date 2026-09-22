@@ -24,9 +24,12 @@
 
 namespace ltiservice_ontrack\local\resources;
 
+use dml_missing_record_exception;
+use Exception;
 use ltiservice_ontrack\local\course_snapshot;
 use ltiservice_ontrack\local\service\ontrack;
 use mod_lti\local\ltiservice\resource_base;
+use Throwable;
 
 /**
  * Provides one read-only course integration snapshot.
@@ -69,37 +72,37 @@ class coursedata extends resource_base
             if ($includeparam !== '') {
                 $requested = explode(',', $includeparam);
                 if (in_array('', $requested, true) || count($requested) !== count(array_unique($requested))) {
-                    throw new \Exception('Invalid include parameter', 400);
+                    throw new Exception('Invalid include parameter', 400);
                 }
                 foreach ($requested as $section) {
                     if (!in_array($section, course_snapshot::SECTIONS, true)) {
-                        throw new \Exception('Invalid include parameter', 400);
+                        throw new Exception('Invalid include parameter', 400);
                     }
                 }
                 $includes = array_values(array_intersect(course_snapshot::SECTIONS, $requested));
             }
 
             if (empty($contextid) || empty($toolcode)) {
-                throw new \Exception('Invalid context or tool id', 400);
+                throw new Exception('Invalid context or tool id', 400);
             }
 
             if (!$this->check_tool($toolcode, $response->get_request_data(), [ontrack::SCOPE_COURSE_DATA_READ])) {
-                throw new \Exception('The LTI tool is not authorised for the OnTrack course-data scope', 401);
+                throw new Exception('The LTI tool is not authorised for the OnTrack course-data scope', 401);
             }
             // LTI 1.1 signed requests skip the token scope check, so enforce the tool setting here.
             if (empty($this->get_service()->get_permitted_scopes())) {
-                throw new \Exception('The OnTrack course-data service is disabled for this tool', 403);
+                throw new Exception('The OnTrack course-data service is disabled for this tool', 403);
             }
 
             $course = get_course($contextid);
             if (!$this->get_service()->is_used_in_context($toolcode, $course->id)) {
-                throw new \Exception('The OnTrack tool is not used in this course', 404);
+                throw new Exception('The OnTrack tool is not used in this course', 404);
             }
             if ($assignmentid > 0 && !in_array('assignments', $includes, true)) {
-                throw new \Exception('assignment_id requires assignments to be included', 400);
+                throw new Exception('assignment_id requires assignments to be included', 400);
             }
             if ($assignmentid > 0 && !course_snapshot::assignment_exists($course->id, $assignmentid)) {
-                throw new \Exception('Assignment not found in this course', 404);
+                throw new Exception('Assignment not found in this course', 404);
             }
 
             $payload = course_snapshot::for_course(
@@ -109,10 +112,10 @@ class coursedata extends resource_base
             );
             $response->set_content_type(self::MEDIA_TYPE);
             $response->set_body(json_encode($payload, JSON_THROW_ON_ERROR));
-        } catch (\dml_missing_record_exception $error) {
+        } catch (dml_missing_record_exception $error) {
             $response->set_code(404);
             $response->set_reason('Course not found');
-        } catch (\Throwable $error) {
+        } catch (Throwable $error) {
             $code = (int) $error->getCode();
             $response->set_code($code >= 400 && $code <= 599 ? $code : 500);
             $response->set_reason($error->getMessage());

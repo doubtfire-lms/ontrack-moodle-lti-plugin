@@ -25,6 +25,8 @@
 
 namespace ltiservice_ontrack;
 
+use advanced_testcase;
+use context_course;
 use ltiservice_ontrack\local\course_snapshot;
 
 /**
@@ -32,7 +34,7 @@ use ltiservice_ontrack\local\course_snapshot;
  *
  * @covers \ltiservice_ontrack\local\course_snapshot
  */
-final class course_snapshot_test extends \advanced_testcase
+final class course_snapshot_test extends advanced_testcase
 {
     /**
      * The full snapshot contains every section.
@@ -110,7 +112,7 @@ final class course_snapshot_test extends \advanced_testcase
         $studentrole = $DB->get_record('role', ['shortname' => 'student'], '*', MUST_EXIST);
         $DB->insert_record('role_names', (object) [
             'roleid' => $studentrole->id,
-            'contextid' => \context_course::instance($course->id)->id,
+            'contextid' => context_course::instance($course->id)->id,
             'name' => 'Learner',
         ]);
 

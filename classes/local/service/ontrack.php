@@ -24,10 +24,13 @@
 
 namespace ltiservice_ontrack\local\service;
 
+use ltiservice_ontrack\local\resources\coursedata;
+use mod_lti\local\ltiservice\service_base;
+
 /**
  * Advertises and authorises the OnTrack course-data resource.
  */
-class ontrack extends \mod_lti\local\ltiservice\service_base
+class ontrack extends service_base
 {
     /** OAuth scope required to read course enrolments, groups and assignments. */
     public const SCOPE_COURSE_DATA_READ = 'https://ontrack.edu.au/lti/scope/course-data.readonly';
@@ -49,7 +52,7 @@ class ontrack extends \mod_lti\local\ltiservice\service_base
     public function get_resources() {
         if (empty($this->resources)) {
             $this->resources = [
-            new \ltiservice_ontrack\local\resources\coursedata($this),
+            new coursedata($this),
             ];
         }
 
