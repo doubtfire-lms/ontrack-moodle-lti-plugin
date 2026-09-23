@@ -28,6 +28,8 @@ A read-only Moodle LTI service that lets the registered OnTrack tool fetch cours
 
 If the service is set to **Do not expose**, launches don't include the endpoint and requests are refused.
 
+Only site-level tools can use the service. Setting it on a tool that a teacher adds to their own course has no effect, so a teacher can't use it to read course data.
+
 ## Endpoint
 
 ```text

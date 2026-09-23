@@ -74,7 +74,9 @@ class ontrack extends service_base
      * @return string[]
      */
     public function get_permitted_scopes() {
+        // Teachers can add tools to their own course, so only site tools may read course data.
         $enabled = !empty($this->get_type())
+        && (int) $this->get_type()->course === (int) SITEID
         && isset($this->get_typeconfig()[$this->get_component_id()])
         && (int) $this->get_typeconfig()[$this->get_component_id()] === self::SERVICE_ENABLED;
 
