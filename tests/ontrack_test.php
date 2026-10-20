@@ -26,6 +26,7 @@
 namespace ltiservice_ontrack;
 
 use advanced_testcase;
+use ltiservice_ontrack\event\course_data_exported;
 use ltiservice_ontrack\local\resources\coursedata;
 use ltiservice_ontrack\local\service\ontrack;
 use mod_lti\local\ltiservice\response;
@@ -82,10 +83,17 @@ final class ontrack_test extends advanced_testcase
         $typeid = $this->create_tool(SITEID, true);
         $this->getDataGenerator()->create_module('lti', ['course' => $course->id, 'typeid' => $typeid]);
 
+        $sink = $this->redirectEvents();
         $response = $this->request_course_data($course->id, $typeid);
 
         $this->assertSame(200, $response->get_code());
         $this->assertSame((string) $course->id, json_decode($response->get_body())->context->id);
+        $events = $sink->get_events();
+        $this->assertCount(1, $events);
+        $this->assertInstanceOf(course_data_exported::class, $events[0]);
+        $this->assertSame((int) $course->id, (int) $events[0]->courseid);
+        $this->assertSame(0, (int) $events[0]->userid);
+        $this->assertSame(['toolid' => $typeid, 'sections' => 'users, groups, assignments'], $events[0]->other);
     }
 
     /**

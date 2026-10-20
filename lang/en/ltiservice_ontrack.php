@@ -23,6 +23,7 @@
  */
 
 $string['allow'] = 'Allow OnTrack to read course integration data';
+$string['eventcoursedataexported'] = 'Course data exported to an LTI tool';
 $string['ltiservice_ontrack'] = 'OnTrack course data';
 $string['ltiservice_ontrack_help'] = 'Allows the registered OnTrack LTI tool to retrieve read-only course enrolments, user details, roles, groups, assignments, due dates and extensions in courses where the tool is used. Only site-level tools can use this service; it has no effect on tools added to a single course.';
 $string['notallow'] = 'Do not expose course integration data to OnTrack';

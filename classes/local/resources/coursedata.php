@@ -26,6 +26,7 @@ namespace ltiservice_ontrack\local\resources;
 
 use dml_missing_record_exception;
 use Exception;
+use ltiservice_ontrack\event\course_data_exported;
 use ltiservice_ontrack\local\course_snapshot;
 use ltiservice_ontrack\local\service\ontrack;
 use mod_lti\local\ltiservice\resource_base;
@@ -110,8 +111,14 @@ class coursedata extends resource_base
                 $includes,
                 $assignmentid > 0 ? $assignmentid : null
             );
+            $body = json_encode($payload, JSON_THROW_ON_ERROR);
+            course_data_exported::create([
+                'context' => \context_course::instance($course->id),
+                'userid' => 0,
+                'other' => ['toolid' => $toolcode, 'sections' => implode(', ', $includes)],
+            ])->trigger();
             $response->set_content_type(self::MEDIA_TYPE);
-            $response->set_body(json_encode($payload, JSON_THROW_ON_ERROR));
+            $response->set_body($body);
         } catch (dml_missing_record_exception $error) {
             $response->set_code(404);
             $response->set_reason('Course not found');
